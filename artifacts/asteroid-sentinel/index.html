@@ -127,18 +127,20 @@
               <select class="filter-select" id="hazard-filter" aria-label="Filter by classification">
                 <option value="all">All hazard statuses</option><option value="hazardous">Potentially hazardous</option><option value="safe">Not potentially hazardous</option>
               </select>
-              <select class="filter-select" id="size-filter" aria-label="Filter by estimated diameter">
-                <option value="all">All sizes</option><option value="small">Under 50 m</option><option value="medium">50–250 m</option><option value="large">Over 250 m</option>
-              </select>
+              <div class="diameter-filters" role="group" aria-label="Filter by estimated diameter in meters" title="Diameter filters use the midpoint of NASA's estimated range.">
+                <input class="filter-select diameter-input" id="diameter-min" type="number" min="0" step="any" placeholder="Min m" aria-label="Minimum estimated diameter in meters" aria-describedby="diameter-filter-message">
+                <input class="filter-select diameter-input" id="diameter-max" type="number" min="0" step="any" placeholder="Max m" aria-label="Maximum estimated diameter in meters" aria-describedby="diameter-filter-message">
+              </div>
               <select class="filter-select" id="sort-select" aria-label="Sort asteroid catalog">
-                <option value="approach">Sort: Closest approach</option><option value="name">Sort: Name</option><option value="diameter">Sort: Diameter</option><option value="velocity">Sort: Velocity</option>
+                <option value="distance">Sort: Miss distance</option><option value="diameter">Sort: Size</option><option value="velocity">Sort: Velocity</option><option value="date">Sort: Close-approach date</option><option value="name">Sort: Name</option>
               </select>
-              <span class="table-count" id="table-count">0 OBJECTS</span>
+              <span class="table-count" id="table-count" role="status" aria-live="polite">0 OBJECTS</span>
             </div>
+            <div class="filter-message" id="diameter-filter-message" role="alert" hidden></div>
             <article class="panel">
               <div class="table-wrap">
                 <table>
-                  <thead><tr><th><button data-sort="name">Object / designation ↕</button></th><th>Close approach</th><th><button data-sort="approach">Miss distance ↕</button></th><th>Est. diameter</th><th>Velocity</th><th>NASA hazard status</th><th></th></tr></thead>
+                  <thead><tr><th><button data-sort="name">Object / designation ↕</button></th><th><button data-sort="date">Close approach ↕</button></th><th><button data-sort="distance">Miss distance ↕</button></th><th><button data-sort="diameter">Est. diameter ↕</button></th><th><button data-sort="velocity">Velocity ↕</button></th><th>NASA hazard status</th><th></th></tr></thead>
                   <tbody id="asteroid-rows"></tbody>
                 </table>
               </div>

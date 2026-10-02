@@ -181,7 +181,7 @@ h1 span { color:var(--cyan); }
 .risk-row strong { font:9px var(--mono); color:#d7e1e7; font-weight:400; }
 .risk-track { height:3px; background:#172531; border-radius:4px; margin-top:5px; grid-column:2/4; }
 .risk-track i { display:block;height:100%;border-radius:4px;background:var(--risk); }
-.table-toolbar { display:flex; gap:9px; align-items:center; margin-bottom:11px; }
+.table-toolbar { display:flex; flex-wrap:wrap; gap:9px; align-items:center; margin-bottom:11px; }
 .search-box { position:relative; flex:1; max-width:310px; }
 .search-box span { position:absolute; left:11px; top:9px; color:#62778a; font-size:12px; }
 .search-box input,.filter-select { height:34px; color:#c9d5de; background:#0a131e; border:1px solid #1d2c3a; border-radius:4px; }
@@ -189,6 +189,11 @@ h1 span { color:var(--cyan); }
 .search-box input::placeholder { color:#617385; }
 .search-box input:focus,.filter-select:focus { border-color:#458090; }
 .filter-select { padding:0 27px 0 10px; font-size:9px; }
+.diameter-filters { display:flex; gap:5px; flex:none; }
+.diameter-input { width:78px; padding:0 8px; font:9px var(--mono); }
+.diameter-input[aria-invalid="true"] { border-color:#a85252; }
+.filter-message { margin:-3px 0 9px; padding:8px 10px; border:1px solid #5a3633; border-radius:4px; background:#201513; color:#e1a08b; font-size:9px; line-height:1.5; }
+.filter-message[hidden] { display:none; }
 .table-count { color:#708396; font:8px var(--mono); margin-left:auto; white-space:nowrap; }
 .table-wrap { overflow:auto; }
 table { width:100%; border-collapse:collapse; min-width:720px; }
@@ -260,11 +265,27 @@ tbody tr.selected { background:#10222c; box-shadow:inset 2px 0 var(--cyan); }
 .modal-backdrop { display:none; position:fixed;inset:0;background:#02060bc9;z-index:60;place-items:center;padding:20px; }
 .modal-backdrop.open { display:grid; }
 .modal { width:min(440px,100%);background:#0a1420;border:1px solid #29404d;border-radius:7px;padding:20px;box-shadow:0 25px 90px #000b; }
+.modal.wide { width:min(680px,100%);max-height:min(88vh,820px);overflow:auto; }
+.modal.wide .modal-head { padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid #1b2a37; }
 .modal-head { display:flex;justify-content:space-between;align-items:center; }
 .modal h2 { font-size:15px;margin:0; }
 .modal p { color:#8799a6;font-size:10px;line-height:1.7; }
 .modal-close { border:0;background:none;color:#92a4b2;font-size:18px;cursor:pointer; }
 .modal-data { padding:12px;border:1px solid #1c2d3a;background:#0d1924;border-radius:4px;color:#91a6b3;font:9px var(--mono);line-height:1.8; }
+.asteroid-modal-detail .detail-top { gap:14px; }
+.asteroid-modal-detail .detail-name { font-size:18px; }
+.asteroid-modal-detail .detail-id { line-height:1.6; }
+.asteroid-modal-detail .detail-metrics { margin:14px 0; }
+.asteroid-modal-detail .detail-metric strong { overflow-wrap:anywhere;line-height:1.5; }
+.orbit-section { margin-top:16px;padding-top:13px;border-top:1px solid #1b2a37; }
+.orbit-section h3 { margin:0 0 10px;color:#cbd8df;font-size:10px; }
+.orbit-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px; }
+.orbit-value { min-width:0;padding:9px;border:1px solid #192a38;border-radius:4px;background:#0b1520; }
+.orbit-value small { display:block;margin-bottom:5px;color:#6f8294;font:7px var(--mono);text-transform:uppercase;letter-spacing:.08em; }
+.orbit-value strong { color:#d7e3e9;font:9px var(--mono);font-weight:400;overflow-wrap:anywhere; }
+.orbit-unavailable { margin:0 0 9px; }
+.modal-actions { display:flex;justify-content:flex-end;margin-top:13px; }
+.modal-actions .button { width:auto;min-height:34px; }
 @keyframes toast-in { from {opacity:0;transform:translateY(-7px)} to {opacity:1;transform:translateY(0)} }
 @keyframes spin { to { transform:rotate(360deg); } }
 @keyframes status-pulse { to { opacity:.45; } }
@@ -302,6 +323,9 @@ tbody tr.selected { background:#10222c; box-shadow:inset 2px 0 var(--cyan); }
   .feed-date-field input { width:100%; min-width:0; }
   .table-toolbar { flex-wrap:wrap; }.search-box { flex-basis:100%;max-width:none; }
   .table-count { margin-left:0; }
+  .modal-backdrop { padding:10px; }
+  .modal.wide { max-height:90vh;padding:16px; }
+  .asteroid-modal-detail .detail-top { align-items:flex-start; }
   .footer { margin:25px 14px 0;flex-direction:column;line-height:1.7; }
 }
 @media (max-width:390px) {

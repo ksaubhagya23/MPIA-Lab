@@ -9,13 +9,16 @@ let selectedLimit = 7;
 let selectedFeedDate = "";
 let isLoading = false;
 let feedError = "";
-let sortBy = "approach";
+let sortBy = "distance";
 let sortDirection = 1;
+let modalReturnFocus = null;
 
 const rows = document.querySelector("#asteroid-rows");
 const searchInput = document.querySelector("#asteroid-search");
 const hazardFilter = document.querySelector("#hazard-filter");
-const sizeFilter = document.querySelector("#size-filter");
+const minimumDiameterInput = document.querySelector("#diameter-min");
+const maximumDiameterInput = document.querySelector("#diameter-max");
+const diameterFilterMessage = document.querySelector("#diameter-filter-message");
 const sortSelect = document.querySelector("#sort-select");
 const feedForm = document.querySelector("#feed-form");
 const feedDate = document.querySelector("#feed-date");
@@ -128,13 +131,18 @@ function normalizeAsteroid(neo, requestedDate) {
   const distanceAu = numericValue(closeApproach.miss_distance?.astronomical)
     ?? (distanceKm !== null ? distanceKm / ASTRONOMICAL_UNIT_KM : null);
   const velocityKmS = numericValue(closeApproach.relative_velocity?.kilometers_per_second);
+  const approachTimestamp = numericValue(closeApproach.epoch_date_close_approach)
+    ?? Date.parse(`${closeApproach.close_approach_date ?? requestedDate}T${closeApproach.close_approach_time ?? "00:00"}:00Z`);
+  const orbitalData = neo.orbital_data && typeof neo.orbital_data === "object" ? neo.orbital_data : {};
 
   return {
     id: String(neo.id ?? neo.neo_reference_id ?? neo.name ?? ""),
     name: String(neo.name ?? neo.id ?? "Unnamed near-Earth object"),
-    designation: String(neo.name ?? neo.id ?? "Unnamed object"),
+    designation: String(neo.designation ?? neo.name ?? neo.neo_reference_id ?? neo.id ?? "Unspecified"),
+    neoReferenceId: String(neo.neo_reference_id ?? neo.id ?? "—"),
     date: closeApproach.close_approach_date ?? requestedDate,
     dateFull: String(closeApproach.close_approach_date_full ?? closeApproach.close_approach_date ?? requestedDate),
+    approachTimestamp: Number.isFinite(approachTimestamp) ? approachTimestamp : null,
     distanceKm,
     distanceAu,
     diameterMinMeters,
@@ -146,7 +154,17 @@ function normalizeAsteroid(neo, requestedDate) {
     hazardous: typeof neo.is_potentially_hazardous_asteroid === "boolean"
       ? neo.is_potentially_hazardous_asteroid
       : null,
-    jplUrl: String(neo.nasa_jpl_url ?? "")
+    jplUrl: String(neo.nasa_jpl_url ?? ""),
+    orbitInfo: {
+      orbitClass: String(orbitalData.orbit_class?.orbit_class_description
+        ?? orbitalData.orbit_class?.orbit_class_type
+        ?? orbitalData.orbit_class?.abbreviation
+        ?? ""),
+      semiMajorAxisAu: numericValue(orbitalData.semi_major_axis),
+      orbitalPeriodDays: numericValue(orbitalData.orbital_period),
+      inclinationDeg: numericValue(orbitalData.inclination),
+      eccentricity: numericValue(orbitalData.eccentricity)
+    }
   };
 }
 
@@ -191,23 +209,39 @@ function resetDetails() {
 function renderTable() {
   const query = searchInput.value.trim().toLowerCase();
   const classification = hazardFilter.value;
-  const size = sizeFilter.value;
-  const list = asteroids.filter((item) => {
+  const minRaw = minimumDiameterInput.value.trim();
+  const maxRaw = maximumDiameterInput.value.trim();
+  const minDiameter = minRaw === "" ? null : Number(minRaw);
+  const maxDiameter = maxRaw === "" ? null : Number(maxRaw);
+  const minInvalid = minRaw !== "" && (!Number.isFinite(minDiameter) || minDiameter < 0);
+  const maxInvalid = maxRaw !== "" && (!Number.isFinite(maxDiameter) || maxDiameter < 0);
+  const diameterError = minInvalid
+    ? "Enter a valid minimum diameter of 0 meters or more."
+    : maxInvalid
+      ? "Enter a valid maximum diameter of 0 meters or more."
+      : minDiameter !== null && maxDiameter !== null && minDiameter > maxDiameter
+        ? "Minimum diameter must not exceed maximum diameter."
+        : "";
+  diameterFilterMessage.hidden = !diameterError;
+  diameterFilterMessage.textContent = diameterError;
+  minimumDiameterInput.setAttribute("aria-invalid", String(minInvalid || Boolean(diameterError && !maxInvalid)));
+  maximumDiameterInput.setAttribute("aria-invalid", String(maxInvalid || Boolean(diameterError && !minInvalid)));
+
+  const list = diameterError ? [] : asteroids.filter((item) => {
     const matchesQuery = `${item.name} ${item.designation} ${item.id}`.toLowerCase().includes(query);
     const matchesHazard = classification === "all"
       || (classification === "hazardous" && item.hazardous === true)
       || (classification === "safe" && item.hazardous === false);
-    const matchesSize = size === "all"
-      || (size === "small" && item.diameterMeters !== null && item.diameterMeters < 50)
-      || (size === "medium" && item.diameterMeters !== null && item.diameterMeters >= 50 && item.diameterMeters <= 250)
-      || (size === "large" && item.diameterMeters !== null && item.diameterMeters > 250);
-    return matchesQuery && matchesHazard && matchesSize;
+    const matchesMinimum = minDiameter === null || (item.diameterMeters !== null && item.diameterMeters >= minDiameter);
+    const matchesMaximum = maxDiameter === null || (item.diameterMeters !== null && item.diameterMeters <= maxDiameter);
+    return matchesQuery && matchesHazard && matchesMinimum && matchesMaximum;
   });
 
-  const sortKey = sortBy === "approach" ? "distanceKm"
+  const sortKey = sortBy === "distance" ? "distanceKm"
     : sortBy === "diameter" ? "diameterMeters"
       : sortBy === "velocity" ? "velocityKmS"
-        : "name";
+        : sortBy === "date" ? "approachTimestamp"
+          : "name";
   list.sort((first, second) => {
     if (typeof first[sortKey] === "string") {
       return first[sortKey].localeCompare(second[sortKey]) * sortDirection;
@@ -233,7 +267,12 @@ function renderTable() {
   }
 
   if (!list.length) {
-    rows.innerHTML = '<tr><td class="empty-row" colspan="7">No NASA objects match those filters. Try a different name, size, or hazard status.</td></tr>';
+    const emptyMessage = diameterError
+      ? "Correct the diameter limits above to show asteroid records."
+      : query
+        ? `No NASA objects match “${query}”. Try another name or designation, or adjust the filters.`
+        : "No NASA objects match the selected diameter and hazard filters.";
+    rows.innerHTML = `<tr><td class="empty-row" colspan="7">${escapeHtml(emptyMessage)}</td></tr>`;
     return;
   }
 
@@ -250,11 +289,11 @@ function renderTable() {
   }).join("");
 
   rows.querySelectorAll("tr[data-id]").forEach((row) => {
-    row.addEventListener("click", () => selectAsteroid(row.dataset.id));
+    row.addEventListener("click", () => selectAsteroid(row.dataset.id, row));
     row.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        selectAsteroid(row.dataset.id);
+        selectAsteroid(row.dataset.id, row);
       }
     });
   });
@@ -269,11 +308,54 @@ function safeJplUrl(value) {
   }
 }
 
-function selectAsteroid(id) {
+function orbitDetailsMarkup(asteroid) {
+  const orbit = asteroid.orbitInfo;
+  const details = [
+    ["Orbit class", orbit.orbitClass],
+    ["Semi-major axis", Number.isFinite(orbit.semiMajorAxisAu) ? `${formatNumber(orbit.semiMajorAxisAu, 5)} AU` : ""],
+    ["Orbital period", Number.isFinite(orbit.orbitalPeriodDays) ? `${formatNumber(orbit.orbitalPeriodDays, 2)} days` : ""],
+    ["Inclination", Number.isFinite(orbit.inclinationDeg) ? `${formatNumber(orbit.inclinationDeg, 4)}°` : ""],
+    ["Eccentricity", Number.isFinite(orbit.eccentricity) ? formatNumber(orbit.eccentricity, 5) : ""]
+  ].filter(([, value]) => value);
+  const jplUrl = safeJplUrl(asteroid.jplUrl);
+  const rowsMarkup = details.length
+    ? `<div class="orbit-grid">${details.map(([label, value]) => `<div class="orbit-value"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>`
+    : `<p class="orbit-unavailable">Orbital parameters are not included in this NeoWs feed record.</p>`;
+  const referenceMarkup = jplUrl
+    ? `<a class="button detail-action" href="${escapeHtml(jplUrl)}" target="_blank" rel="noopener noreferrer">Open NASA JPL record <span aria-hidden="true">↗</span></a>`
+    : `<p class="orbit-unavailable">No JPL reference link was supplied for this object.</p>`;
+  return `<section class="orbit-section" aria-label="Orbit and reference information"><h3>Orbit / reference</h3>${rowsMarkup}${referenceMarkup}</section>`;
+}
+
+function asteroidModalMarkup(asteroid) {
+  const diameter = formatDiameterRange(asteroid);
+  const velocity = asteroid.velocityKmS === null ? "Unavailable" : `${formatNumber(asteroid.velocityKmS, 2)} km/s`;
+  const distance = `${formatKilometers(asteroid.distanceKm)} · ${formatAstronomicalUnits(asteroid.distanceAu)}`;
+  const approachDate = `${asteroid.dateFull} UTC`;
+  return `<div class="asteroid-modal-detail">
+    <div class="detail-top"><div><p class="section-kicker">Near-Earth object dossier</p><div class="detail-name">${escapeHtml(asteroid.name)}</div><div class="detail-id">NASA designation · ${escapeHtml(asteroid.designation)}</div></div><span class="hazard ${hazardClass(asteroid)}">${escapeHtml(hazardLabel(asteroid))}</span></div>
+    <div class="detail-metrics">
+      <div class="detail-metric"><small>NASA designation</small><strong>${escapeHtml(asteroid.designation)}</strong></div>
+      <div class="detail-metric"><small>NeoWs reference ID</small><strong>${escapeHtml(asteroid.neoReferenceId)}</strong></div>
+      <div class="detail-metric"><small>Potentially hazardous</small><strong>${escapeHtml(hazardLabel(asteroid))}</strong></div>
+      <div class="detail-metric"><small>Estimated diameter</small><strong>${escapeHtml(diameter)}</strong></div>
+      <div class="detail-metric"><small>Relative velocity</small><strong>${escapeHtml(velocity)}</strong></div>
+      <div class="detail-metric"><small>Miss distance from Earth</small><strong>${escapeHtml(distance)}</strong></div>
+      <div class="detail-metric"><small>Close approach · UTC</small><strong>${escapeHtml(approachDate)}</strong></div>
+    </div>
+    <p class="detail-copy">Diameter is NASA's estimated range. The potentially hazardous flag is a screening classification, not an impact prediction.</p>
+    ${orbitDetailsMarkup(asteroid)}
+    <div class="modal-actions"><button class="button primary" id="asteroid-modal-back" type="button"><span aria-hidden="true">←</span> Back to asteroid list</button></div>
+  </div>`;
+}
+
+function selectAsteroid(id, returnFocusTo = null) {
   const asteroid = asteroids.find((item) => item.id === id);
   if (!asteroid) return;
   selectedId = id;
   renderTable();
+  const tableRow = [...rows.querySelectorAll("tr[data-id]")].find((row) => row.dataset.id === id);
+  const focusTarget = returnFocusTo?.isConnected ? returnFocusTo : tableRow;
   document.querySelector("#detail-empty").style.display = "none";
   const detail = document.querySelector("#detail-content");
   const jplUrl = safeJplUrl(asteroid.jplUrl);
@@ -293,6 +375,13 @@ function selectAsteroid(id) {
   document.querySelector("#focus-approach").addEventListener("click", () => {
     document.querySelector("#approaches").scrollIntoView({ behavior: "smooth" });
     showToast(`${asteroid.name} selected`, "Showing its NASA close-approach record.");
+  });
+  openModal("Asteroid details", asteroidModalMarkup(asteroid), focusTarget);
+  document.querySelector("#asteroid-modal-back").addEventListener("click", () => {
+    closeModal(false);
+    document.querySelector("#explorer").scrollIntoView({ behavior: "smooth", block: "start" });
+    const currentRow = [...rows.querySelectorAll("tr[data-id]")].find((row) => row.dataset.id === id);
+    (currentRow || searchInput).focus({ preventScroll: true });
   });
 }
 
@@ -320,8 +409,7 @@ function renderApproaches() {
   ).join("");
   container.querySelectorAll(".approach").forEach((button) => {
     button.addEventListener("click", () => {
-      selectAsteroid(button.dataset.id);
-      document.querySelector("#detail-panel").scrollIntoView({ behavior: "smooth", block: "center" });
+      selectAsteroid(button.dataset.id, button);
     });
   });
 }
@@ -492,15 +580,22 @@ function renderDashboard() {
   renderCharts();
 }
 
-function openModal(title, html) {
+function openModal(title, html, returnFocusTo = document.activeElement) {
+  modalReturnFocus = returnFocusTo;
   document.querySelector("#modal-title").textContent = title;
   document.querySelector("#modal-body").innerHTML = html;
-  document.querySelector("#modal-backdrop").classList.add("open");
+  const backdrop = document.querySelector("#modal-backdrop");
+  backdrop.classList.add("open");
+  document.querySelector(".modal").classList.toggle("wide", title === "Asteroid details");
   document.querySelector("#modal-close").focus();
 }
 
-function closeModal() {
+function closeModal(restoreFocus = true) {
   document.querySelector("#modal-backdrop").classList.remove("open");
+  document.querySelector(".modal").classList.remove("wide");
+  const focusTarget = modalReturnFocus;
+  modalReturnFocus = null;
+  if (restoreFocus && focusTarget?.isConnected) focusTarget.focus({ preventScroll: true });
 }
 
 function csvField(value) {
@@ -697,7 +792,8 @@ feedForm.addEventListener("submit", (event) => {
 });
 searchInput.addEventListener("input", renderTable);
 hazardFilter.addEventListener("change", renderTable);
-sizeFilter.addEventListener("change", renderTable);
+minimumDiameterInput.addEventListener("input", renderTable);
+maximumDiameterInput.addEventListener("input", renderTable);
 sortSelect.addEventListener("change", () => {
   sortBy = sortSelect.value;
   sortDirection = 1;
@@ -726,7 +822,26 @@ document.querySelector("#modal-backdrop").addEventListener("click", (event) => {
   if (event.target.id === "modal-backdrop") closeModal();
 });
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeModal();
+  const modalBackdrop = document.querySelector("#modal-backdrop");
+  if (!modalBackdrop.classList.contains("open")) return;
+  if (event.key === "Escape") {
+    closeModal();
+    return;
+  }
+  if (event.key === "Tab") {
+    const focusable = [...modalBackdrop.querySelectorAll("button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])")]
+      .filter((element) => element.getClientRects().length);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 });
 
 feedDate.max = new Date().toISOString().slice(0, 10);
