@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Asteroid Sentinel"
+description = "A responsive Near-Earth Asteroid monitoring dashboard for exploring asteroid observations, close approaches, and risk analytics using realistic sample data."
+version = "1.0.0"
+id = "artifacts/asteroid-sentinel"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24639
+
+[services.development]
+run = "pnpm --filter @workspace/asteroid-sentinel run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/asteroid-sentinel", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/asteroid-sentinel/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24639"
+BASE_PATH = "/"
