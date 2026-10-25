@@ -1,5 +1,4 @@
-const NASA_FEED_URL = "https://api.nasa.gov/neo/rest/v1/feed";
-const NASA_API_KEY = "DEMO_KEY";
+const NASA_FEED_URL = "/api/nasa/feed";
 const ASTRONOMICAL_UNIT_KM = 149597870.7;
 const feedCache = new Map();
 
@@ -697,10 +696,14 @@ async function loadFeed(date) {
     let rawRecords = feedCache.get(date);
     const loadedFromCache = Array.isArray(rawRecords);
     if (!loadedFromCache) {
-      const url = new URL(NASA_FEED_URL);
-      url.searchParams.set("start_date", date);
-      url.searchParams.set("end_date", date);
-      url.searchParams.set("api_key", NASA_API_KEY);
+      const url = new URL(NASA_FEED_URL, window.location.origin);
+url.searchParams.set("start_date", date);
+url.searchParams.set("end_date", date);
+
+const controller = new AbortController();
+timeoutId = window.setTimeout(() => controller.abort(), 25000);
+
+const response = await fetch(url, { signal: controller.signal });
       const controller = new AbortController();
       timeoutId = window.setTimeout(() => controller.abort(), 20000);
       const response = await fetch(url, { signal: controller.signal });
