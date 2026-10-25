@@ -715,7 +715,7 @@ const response = await fetch(url, { signal: controller.signal });
       }
       if (!response.ok) {
         if (response.status === 429 || payload.code === 429) {
-          throw new Error("NASA's public DEMO_KEY rate limit was reached. Wait and try again later.");
+          throw new Error("NASA's rate limit was reached. Wait and try again later.");
         }
         const message = payload.error?.message || payload.msg || `NASA NeoWs returned HTTP ${response.status}.`;
         throw new Error(message);
